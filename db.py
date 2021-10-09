@@ -26,9 +26,7 @@ class Database:
             tags = self.tags_from_todo(doc.doc_id)
             return {
                 "id": doc.doc_id,
-                "title": doc["title"],
-                "completed": doc["completed"],
-                "order": doc["order"],
+                **doc,
                 "tags": tags,
             }
 
@@ -43,9 +41,7 @@ class Database:
         todo_id = self.TODOS.insert(todo)
         return {
             "id": todo_id,
-            "title": todo["title"],
-            "completed": todo["completed"],
-            "order": todo["order"],
+            **todo,
         }
 
     def delete_todos(self):
@@ -59,9 +55,7 @@ class Database:
             tags = self.tags_from_todo(todo_id)
             return {
                 "id": todo_id,
-                "title": doc["title"],
-                "completed": doc["completed"],
-                "order": doc["order"],
+                **doc,
                 "tags": tags,
             }
         else:
@@ -74,8 +68,7 @@ class Database:
 
         return True
 
-    def patch_todo(self, todo_id: int, fields: dict[str, Union[int, bool, str]]) -> Optional[
-        dict[str, Union[int, bool, str]]]:
+    def patch_todo(self, todo_id: int, fields: dict[str, Union[int, bool, str]]) -> Optional[dict[str, Union[int, bool, str]]]:
         if not len(self.TODOS.update(fields, doc_ids=[todo_id])):
             return None
 
@@ -118,7 +111,7 @@ class Database:
             tag: Document = self.TAGS.get(doc_id=doc["tag"])
             return {
                 "id": tag.doc_id,
-                "title": tag["title"],
+                **tag,
             }
 
         return list(map(
@@ -140,9 +133,7 @@ class Database:
             todo: Document = self.TODOS.get(doc_id=d["todo"])
             return {
                 "id": todo.doc_id,
-                "title": todo["title"],
-                "completed": todo["completed"],
-                "order": todo["order"],
+                **todo,
             }
 
         return list(map(
@@ -158,7 +149,7 @@ class Database:
             tags = self.todos_from_tag(doc.doc_id)
             return {
                 "id": doc.doc_id,
-                "title": doc["title"],
+                **doc,
                 "tags": tags,
             }
 
@@ -172,7 +163,7 @@ class Database:
 
         return {
             "id": tag_id,
-            "title": tag["title"],
+            **tag,
         }
 
     def delete_tags(self):
@@ -186,7 +177,7 @@ class Database:
             todos = self.todos_from_tag(tag_id)
             return {
                 "id": tag_id,
-                "title": doc["title"],
+                **doc,
                 "todos": todos,
             }
         else:
