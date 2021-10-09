@@ -1,3 +1,3 @@
 tinydb~=4.5.2
 aiohttp~=3.7.4.post0
-aiohttp_cors=
+aiohttp_cors=*

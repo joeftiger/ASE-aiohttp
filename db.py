@@ -3,9 +3,6 @@ from typing import Optional, Union
 from tinydb import TinyDB, Query
 from tinydb.table import Document
 
-from tag import route_tag
-from todo import route_todo
-
 
 class Database:
     db = TinyDB("./ase.db")
@@ -26,12 +23,11 @@ class Database:
     ####################################################################################################################
     def get_todos(self) -> list[dict[str, Union[int, bool, str, list[dict[str, Union[str, int]]]]]]:
         def fn_map(doc: Document):
-            tags = self.tags_from_todo(doc["tags"])
+            tags = self.tags_from_todo(doc.doc_id)
             return {
                 "id": doc.doc_id,
                 "title": doc["title"],
                 "completed": doc["completed"],
-                "url": route_todo(doc.doc_id),
                 "order": doc["order"],
                 "tags": tags,
             }
@@ -41,15 +37,14 @@ class Database:
     def post_todo(self, fields: dict[str, Union[int, bool, str]]) -> dict[str, Union[int, bool, str]]:
         todo = {
             "title": fields["title"],
-            "completed": fields["completed"],
-            "order": fields["order"],
+            "completed": fields.setdefault("completed", False),
+            "order": fields.setdefault("order", 0),
         }
         todo_id = self.TODOS.insert(todo)
         return {
             "id": todo_id,
             "title": todo["title"],
             "completed": todo["completed"],
-            "url": route_todo(todo_id),
             "order": todo["order"],
         }
 
@@ -66,7 +61,6 @@ class Database:
                 "id": todo_id,
                 "title": doc["title"],
                 "completed": doc["completed"],
-                "url": route_todo(todo_id),
                 "order": doc["order"],
                 "tags": tags,
             }
@@ -74,19 +68,18 @@ class Database:
             return None
 
     def delete_todo(self, todo_id: int):
-        self.TODOS.remove(doc_ids=[todo_id])
+        if not len(self.TODOS.remove(doc_ids=[todo_id])):
+            return False
         self.LINKS.remove(cond=Query().todo == todo_id)
 
-    def patch_todo(self, todo_id: int, fields: dict[str, Union[int, bool, str]]) -> dict[str, Union[int, bool, str]]:
-        self.TODOS.update(fields, doc_ids=[todo_id])
+        return True
 
-        return {
-            "id": todo_id,
-            "title": fields["title"],
-            "completed": fields["completed"],
-            "url": route_todo(todo_id),
-            "order": fields["order"]
-        }
+    def patch_todo(self, todo_id: int, fields: dict[str, Union[int, bool, str]]) -> Optional[
+        dict[str, Union[int, bool, str]]]:
+        if not len(self.TODOS.update(fields, doc_ids=[todo_id])):
+            return None
+
+        return self.get_todo(todo_id)
 
     def get_todo_tags(self, todo_id: int) -> list[dict[str, Union[int, str]]]:
         doc = self.TODOS.get(doc_id=todo_id)
@@ -116,17 +109,16 @@ class Database:
         Returns all tags linked to a todo.
 
         The returned format is:
-          * [{ "id": tag ID, "title": tag title, "url": tag url }]
+          * [{ "id": tag ID, "title": tag title}]
         :param todo_id: the document ID of the todo
         :return: list of tags
         """
 
-        def get_tag(d: Document) -> dict[str, Union[str, int]]:
-            tag: Document = self.TAGS.get(doc_id=d["tag"])
+        def get_tag(doc: Document) -> dict[str, Union[str, int]]:
+            tag: Document = self.TAGS.get(doc_id=doc["tag"])
             return {
                 "id": tag.doc_id,
                 "title": tag["title"],
-                "url": route_tag(tag.doc_id),
             }
 
         return list(map(
@@ -139,7 +131,7 @@ class Database:
         Returns all todos linked to a tag.
 
         The returned format is:
-          * [{"id": int, "title": str, "completed":, "url", "order"}]
+          * [{"id": int, "title": str, "completed": bool}]
         :param tag_id:
         :return: list of todos
         """
@@ -150,7 +142,6 @@ class Database:
                 "id": todo.doc_id,
                 "title": todo["title"],
                 "completed": todo["completed"],
-                "url": route_todo(todo.doc_id),
                 "order": todo["order"],
             }
 
@@ -164,17 +155,14 @@ class Database:
     ####################################################################################################################
     def get_tags(self) -> list[dict[str, Union[str, int]]]:
         def fn_map(doc: Document):
-            tags = self.todos_from_tag(doc["tags"])
+            tags = self.todos_from_tag(doc.doc_id)
             return {
                 "id": doc.doc_id,
                 "title": doc["title"],
-                "completed": doc["completed"],
-                "url": route_todo(doc.doc_id),
-                "order": doc["order"],
                 "tags": tags,
             }
 
-        return list(map(fn_map, self.TODOS.all()))
+        return list(map(fn_map, self.TAGS.all()))
 
     def post_tag(self, fields: dict[str, str]) -> dict[str, Union[int, str]]:
         tag = {
@@ -185,7 +173,6 @@ class Database:
         return {
             "id": tag_id,
             "title": tag["title"],
-            "url": route_tag(tag_id)
         }
 
     def delete_tags(self):
@@ -200,16 +187,27 @@ class Database:
             return {
                 "id": tag_id,
                 "title": doc["title"],
-                "url": route_tag(tag_id),
-                "order": doc["order"],
                 "todos": todos,
             }
         else:
             return None
 
-    def delete_tag(self, tag_id: int):
-        self.TODOS.remove(doc_ids=[tag_id])
+    def delete_tag(self, tag_id: int) -> bool:
+        if not len(self.TAGS.remove(doc_ids=[tag_id])):
+            return False
         self.LINKS.remove(cond=Query().tag == tag_id)
 
-    def patch_tag(self, tag_id: int, fields: dict[str, str]):
-        self.TAGS.update(fields=fields, doc_ids=[tag_id])
+        return True
+
+    def patch_tag(self, tag_id: int, fields: dict[str, str]) -> Optional[dict[str, Union[int, bool, str]]]:
+        if not len(self.TAGS.update(fields=fields, doc_ids=[tag_id])):
+            return None
+
+        return self.get_tag(tag_id)
+
+    def get_tag_todos(self, tag_id: int) -> list[dict[str, Union[int, bool, str]]]:
+        doc = self.TAGS.get(doc_id=tag_id)
+        if doc:
+            return self.todos_from_tag(tag_id)
+        else:
+            return []
